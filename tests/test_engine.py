@@ -53,7 +53,8 @@ class EngineTests(unittest.TestCase):
     def test_default_profile(self):
         s=Settings();s.validate()
         self.assertEqual(s.verify_width,8000)
-        self.assertFalse(s.photo_reencode)
+        self.assertTrue(s.photo_reencode)
+        self.assertEqual(s.jpeg_quality,96)
         self.assertEqual(s.suffix,'')
 
     def test_conservative_transform_clip_and_outline_preserved(self):
@@ -69,6 +70,7 @@ class EngineTests(unittest.TestCase):
     def test_output_names_collisions_and_source_protection(self):
         s=Settings()
         a=output_path(self.pdf,None,s)
+        self.assertEqual(a.parent.name,'compressed')
         self.assertEqual(a.name,self.pdf.name)
         a.write_bytes(b'existing')
         b=output_path(self.pdf,None,s)
@@ -138,5 +140,8 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(result['reencoded_photos'][0]['height'],512)
         self.assertLess(result['output_bytes'],result['input_bytes'])
         self.assertTrue(all(v['psnr_db']>=40 for v in result['verification']))
+        strict=compress_pdf(source,self.root/'strict_result',Settings(lossless_polish=False,photo_reencode=False,verify_width=1000))
+        self.assertFalse(strict['reencoded_photos'])
+        self.assertTrue(strict['identical_original_copy'] or all(v['changed_pixels']==0 for v in strict['verification']))
 
 if __name__=='__main__':unittest.main()

@@ -19,6 +19,7 @@ Thumbs.db
 /dist/
 /build/
 /test_results.txt
+/VALIDATION.md
 
 # Editor state and credentials
 .idea/

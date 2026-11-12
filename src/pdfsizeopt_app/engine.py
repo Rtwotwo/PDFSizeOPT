@@ -1,6 +1,7 @@
 """Conservative vector compaction and atomic, validated PDF output.
 
-Default settings never downsample or recompress photographic JPEG streams.
+Adaptive photo encoding is the default; strict lossless remains selectable.
+Neither mode downsamples images or recompresses existing photographic JPEGs.
 Simple non-transparency Form XObjects are inlined without rounding coordinates.
 Every candidate must pass structural checks and optional whole-page rendering.
 """
@@ -34,6 +35,7 @@ from .quality import choose_photo_encoding
 pdf_base.FLOAT_WRITE_PRECISION = 15
 logging.getLogger("pypdf").setLevel(logging.ERROR)
 APP_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_OUTPUT_FOLDER = 'compressed'
 _RENDER_LOCK = threading.Lock()  # PDFium is not thread-safe.
 CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -50,7 +52,7 @@ class Settings:
     compression_level: int = 9
     verify_visual: bool = True
     verify_width: int = 8000
-    photo_reencode: bool = False
+    photo_reencode: bool = True
     jpeg_quality: int = 96
     collision: str = "rename"
     suffix: str = ""
@@ -362,7 +364,7 @@ def render_verify(original, candidate, width, lossy, cancel, emit):
 
 def output_path(source, directory, settings):
     source=Path(source).resolve()
-    folder=Path(directory).expanduser().resolve() if directory else source.parent/'压缩结果'
+    folder=Path(directory).expanduser().resolve() if directory else source.parent/DEFAULT_OUTPUT_FOLDER
     folder.mkdir(parents=True,exist_ok=True)
     target=folder/(source.stem+settings.suffix+source.suffix)
     if target.resolve()==source:

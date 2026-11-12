@@ -19,7 +19,7 @@
   <a href="#acknowledgments">Acknowledgments</a>
 </p>
 
-PDFSizeOPT reduces PDF size by simplifying eligible vector structures, deduplicating resources, and applying lossless object optimization. The default profile preserves image resolution, keeps vector content scalable, and checks the rendered result before saving the output.
+PDFSizeOPT reduces PDF size by simplifying eligible vector structures, deduplicating resources, and applying lossless object optimization. The default profile combines those steps with adaptive high-quality photo compression starting at JPEG quality 96. It preserves image resolution and scalable vector content, checks fine details, and raises quality when necessary. A separate strict lossless mode disables photo re-encoding.
 
 Processing runs entirely on your computer. There are no accounts, uploads, cloud APIs, or subscriptions. Internet access is needed only to install dependencies.
 
@@ -27,9 +27,9 @@ Processing runs entirely on your computer. There are no accounts, uploads, cloud
 
 ## Features
 
-- **Quality-first defaults:** no downsampling or lossy photo re-encoding unless explicitly enabled.
+- **Adaptive defaults:** high-quality photo compression starts at quality 96, with no downsampling. Choose strict lossless mode when exact rendered agreement is required.
 - **Vector-aware optimization:** inline eligible simple Form XObjects, retain transformations and clipping, and deduplicate resources.
-- **Adaptive photo quality:** optional native-resolution JPEG encoding raises quality when fine detail misses the error limits, and keeps the original image if no smaller result passes.
+- **Adaptive photo quality:** native-resolution JPEG encoding raises quality when fine detail misses the error limits, and keeps the original image if no smaller result passes.
 - **Per-page verification:** compare original and output at 2,000 and 8,000 pixels along the longer edge by default.
 - **Automatic fallback:** reject candidates with pixel differences, try a conservative rewrite, or save an unchanged copy.
 - **Batch processing:** add multiple PDFs or a folder, monitor each result, and cancel a running batch.
@@ -42,32 +42,17 @@ Processing runs entirely on your computer. There are no accounts, uploads, cloud
 
 | Implementation | What it does |
 |---|---|
-| [`compact_vectors()`](src/pdfsizeopt_app/engine.py#L126) | Inline eligible simple vector forms, preserve transforms and clipping, and compress rewritten streams |
-| [`rewrite()`](src/pdfsizeopt_app/engine.py#L259) | Clone the document and deduplicate PDF objects using pypdf |
-| [`polish()`](src/pdfsizeopt_app/engine.py#L275) | Invoke the optional upstream `pts/pdfsizeopt` optimizer |
-| [`render_verify()`](src/pdfsizeopt_app/engine.py#L317) | Compare original and candidate pages using PDFium |
-| [`compress_pdf()`](src/pdfsizeopt_app/engine.py#L381) | Select a validated result, handle fallback, and save it atomically |
+| [`compact_vectors()`](src/pdfsizeopt_app/engine.py#L128) | Inline eligible simple vector forms, preserve transforms and clipping, and compress rewritten streams |
+| [`rewrite()`](src/pdfsizeopt_app/engine.py#L261) | Clone the document and deduplicate PDF objects using pypdf |
+| [`polish()`](src/pdfsizeopt_app/engine.py#L277) | Invoke the optional upstream `pts/pdfsizeopt` optimizer |
+| [`render_verify()`](src/pdfsizeopt_app/engine.py#L319) | Compare original and candidate pages using PDFium |
+| [`compress_pdf()`](src/pdfsizeopt_app/engine.py#L383) | Select a validated result, handle fallback, and save it atomically |
 
 The built-in vector transformations, verification, and output management are implemented in this repository. Deep optimization is delegated to the original [pts/pdfsizeopt](https://github.com/pts/pdfsizeopt) project, whose source remains upstream. See the [engine walkthrough](docs/ENGINE.md) for the full call flow, a Python example, and links to both implementations.
 
-## Measured example
+## Test your own documents
 
-A vector-heavy, single-page reference figure was processed with the default settings.
-
-| Measurement | Result |
-|---|---:|
-| Original | 23,114,956 bytes, approximately 23.11 MB |
-| Compressed | 2,337,355 bytes, approximately 2.34 MB |
-| Reduction | **89.888%** |
-| Changed pixels at a 2,000-pixel long edge | **0** |
-| Changed pixels at an 8,000-pixel long edge | **0** |
-| Lossy photo re-encoding | Disabled |
-
-This is one measured result, not a guaranteed compression ratio. Already-optimized PDFs may shrink little or not at all. The reference PDF is not distributed here. See [validation notes](VALIDATION.md).
-
-### Test your own documents
-
-The [corpus test runner](benchmarks/run_corpus.py) runs strict-lossless and adaptive-photo profiles against your local PDFs and records sizes, timing, and quality checks. Inputs and measurements remain local. See the [benchmark protocol](docs/BENCHMARKS.md) for instructions and limitations.
+The [corpus test runner](benchmarks/run_corpus.py) runs strict-lossless and adaptive-photo profiles against your local PDFs and records sizes, timing, and quality checks. Inputs and measurements remain local. See the [benchmark protocol](docs/BENCHMARKS.md) for instructions and limitations. Private test reports are not included in the repository.
 
 ## Requirements
 
@@ -116,7 +101,7 @@ py -3.12 setup_windows.py --optimizer-only
 
 ### 3. Launch
 
-Double-click **`start.cmd`**. The Chinese-named `启动PdfSizeOPT.cmd` launches the same app. For console diagnostics:
+Double-click **`start.cmd`** or its English-named alias **`launch.cmd`**. For console diagnostics:
 
 ```powershell
 .\.venv\Scripts\python.exe app.py
@@ -139,9 +124,9 @@ Shortcuts point to this project folder, so keep it in place or recreate them aft
 ## Usage
 
 1. Click **添加 PDF** to choose one or more PDFs, or **添加文件夹** to add PDFs directly inside a folder. Subfolders are not scanned.
-2. Choose the destination. By default, each result goes into a `压缩结果` folder beside its original file.
+2. Choose the destination. By default, each result goes into a `compressed` folder beside its original file.
 3. Leave the filename suffix empty to preserve the original name.
-4. Keep the default settings for the fidelity-first workflow and click **开始压缩**.
+4. Leave **自适应高质量照片（默认）** selected for adaptive photo compression at starting quality 96, or choose **严格无损（不重编码照片）**. Then click **开始压缩**.
 5. Review size, reduction, status, and quality checks. Double-click a completed row to open its result, or select a failed row to read the error.
 
 | Chinese control | English meaning |
@@ -151,7 +136,9 @@ Shortcuts point to this project folder, so keep it in place or recreate them aft
 | 文件名后缀 | Optional filename suffix |
 | 自动编号，保留两份 | Add a number when an output name already exists |
 | 跳过已存在文件 / 覆盖输出文件 | Skip existing outputs / replace existing outputs |
-| 恢复高保真默认 | Restore fidelity-first defaults |
+| 恢复推荐默认 | Restore adaptive photo defaults at quality 96 |
+| 自适应高质量照片（默认） | Adaptive high-quality photo compression, selected by default |
+| 严格无损（不重编码照片） | Strict lossless mode, with photo re-encoding disabled |
 | 开始压缩 / 取消 | Start compression / cancel |
 | 打开输出目录 | Open the output folder |
 
@@ -168,12 +155,12 @@ Dragging PDFs onto the generated shortcut is supported; dragging into the app wi
 ```text
 C:\Figures\figure.pdf
          ↓ default output
-C:\Figures\压缩结果\figure.pdf
+C:\Figures\compressed\figure.pdf
 ```
 
 The default suffix is empty. If a destination filename already exists, the default policy creates `figure (2).pdf`, then `figure (3).pdf`. You may instead skip an existing output or explicitly replace it.
 
-An output path identical to its source is rejected. Choose another directory or add a suffix. The final file is published only after processing and verification finish, so cancellation does not leave a partially written final PDF. Settings are saved to `settings.json` when a job starts.
+An output path identical to its source is rejected. Choose another directory or add a suffix. The final file is published only after processing and verification finish, so cancellation does not leave a partially written final PDF. Mode selection is remembered immediately in `settings.json`, and all settings are saved when a job starts. Existing saved preferences are retained on ordinary upgrades. **恢复推荐默认** restores adaptive photo mode and starting quality 96. The strict lossless selection enables and locks rendered verification in the GUI.
 
 ## Settings
 
@@ -185,16 +172,16 @@ An output path identical to its source is rejected. Choose another directory or 
 | Compression level | 9 | Deflate level for rewritten vector streams, from 1 to 9 |
 | Per-page visual verification | On | Compare the original and candidate renderings |
 | Verification long edge | 8,000 px | Also check at 2,000 px; higher values need more memory and time |
-| Lossy photo re-encoding | **Off** | Encode eligible raw photo-like images as high-quality JPEG |
-| JPEG starting quality | 96 | Optional photo encoding starts here, then raises quality up to 100 if needed |
+| Photo mode | **Adaptive, on** | Encode eligible raw photo-like images; strict lossless mode is selectable |
+| JPEG starting quality | 96 | Adaptive photo encoding starts here, then raises quality up to 100 if needed |
 | Filename suffix | Empty | Preserve the original name |
 | Existing output | Auto-number | Preserve both files |
 
 The optional optimizer is invoked with PNGOUT, JBIG2, font optimization, font unification, and font regeneration disabled. The application does not rasterize whole pages as a compression shortcut.
 
-### Optional photo compression
+### Compression modes
 
-The **可选照片压缩** tab enables a separate **lossy** mode. It retains image dimensions and uses JPEG 4:4:4 chroma sampling. Existing JPEG/JPX images, masked images, low-color graphics, and detected flat-background diagrams are skipped. This is a selective option, not a universal photograph detector.
+The **自适应高质量照片（默认）** mode is selected by default and is **lossy** when a photo is re-encoded. Set its starting quality in the **照片质量** tab. The **严格无损（不重编码照片）** mode disables all lossy photo re-encoding. It retains image dimensions and uses JPEG 4:4:4 chroma sampling. Existing JPEG/JPX images, masked images, low-color graphics, and detected flat-background diagrams are skipped. This is a selective option, not a universal photograph detector.
 
 The quality control is a **starting value**, never a target reached by lowering quality. For each eligible image, the encoder tries that value and then higher values up to 100. Each accepted JPEG must be smaller and meet all three native-resolution checks:
 
@@ -206,11 +193,11 @@ If no smaller JPEG meets these limits, the original image is retained. These num
 
 Vector/object optimization is validated first with **zero pixel differences**, separately from photographic changes. Any post-photo object optimization must also match the photo candidate exactly. The final photo output additionally requires page PSNR of at least 40 dB at both render scales. This prevents the photo tolerance from masking changes introduced by vector compaction. The interface reports **高质量有损** when any photo is re-encoded.
 
-Keep photo encoding off when exact rendered agreement is the priority. Turning off visual verification skips rendered checks, but native-image quality checks remain active. The extra validation takes more time than a fixed JPEG quality setting.
+Choose strict lossless mode when exact rendered agreement is the priority. In adaptive mode, turning off visual verification skips rendered checks, but native-image quality checks remain active. The extra validation takes more time than a fixed JPEG quality setting.
 
 ## Quality checks and limitations
 
-The app checks page geometry, annotation counts, and the presence of selected catalog features, then compares PDFium renderings at the configured scales. Default-mode candidates must have zero changed pixels at both scales. If the smallest result fails, another candidate or a conservative rewrite is tried. If no smaller acceptable result is available, an unchanged copy is saved with status **原样保留**.
+The app checks page geometry, annotation counts, and the presence of selected catalog features, then compares PDFium renderings at the configured scales. Strict lossless candidates and vector/object transformations must have zero changed pixels at both scales. Adaptive photo candidates must additionally meet the image and page error limits described above. If the smallest result fails, another candidate or a conservative rewrite is tried. If no smaller acceptable result is available, an unchanged copy is saved with status **原样保留**.
 
 These checks apply to the tested renderer and resolutions, not every PDF viewer, zoom level, or interactive feature. Encrypted documents and documents containing signature fields are rejected rather than rewritten. Large or many-page PDFs take longer because every page is checked twice.
 

@@ -11,7 +11,7 @@ import threading
 import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-from .engine import APP_ROOT, Settings
+from .engine import APP_ROOT, DEFAULT_OUTPUT_FOLDER, Settings
 
 BG='#f3f6fa'
 INK='#16283f'
@@ -52,7 +52,7 @@ class App(tk.Tk):
         self.output_mode=tk.StringVar(value='source')
         self.status=tk.StringVar(value='添加 PDF，选择输出位置，然后开始压缩。')
         self.summary=tk.StringVar(value='0 个文件')
-        self.verify_note=tk.StringVar(value='默认保真模式：照片原样保留，矢量继续可缩放。')
+        self.verify_note=tk.StringVar()
         defaults=asdict(Settings())
         self.options={k:(tk.BooleanVar(value=v) if isinstance(v,bool) else tk.IntVar(value=v)
             if isinstance(v,int) else tk.StringVar(value=v)) for k,v in defaults.items()}
@@ -134,7 +134,7 @@ class App(tk.Tk):
         output=ttk.Frame(body,style='Card.TFrame',padding=13)
         output.grid(row=3,column=0,sticky='ew',pady=(0,12))
         ttk.Label(output,text='输出位置与文件名',style='Heading.TLabel').grid(row=0,column=0,sticky='w',columnspan=3,pady=(0,7))
-        ttk.Radiobutton(output,text='每个原文件旁的「压缩结果」文件夹',variable=self.output_mode,value='source',command=self._refresh_mode).grid(row=1,column=0,sticky='w',columnspan=3)
+        ttk.Radiobutton(output,text=f'每个原文件旁的「{DEFAULT_OUTPUT_FOLDER}」文件夹',variable=self.output_mode,value='source',command=self._refresh_mode).grid(row=1,column=0,sticky='w',columnspan=3)
         ttk.Radiobutton(output,text='自定义输出目录',variable=self.output_mode,value='custom',command=self._refresh_mode).grid(row=2,column=0,sticky='w')
         self.output_entry=ttk.Entry(output,textvariable=self.output_dir)
         self.output_entry.grid(row=2,column=1,sticky='ew',padx=8)
@@ -155,24 +155,32 @@ class App(tk.Tk):
         top=ttk.Frame(settings,style='Card.TFrame')
         top.pack(fill='x',pady=(0,6))
         ttk.Label(top,text='压缩设置',style='Heading.TLabel').pack(side='left')
-        ttk.Button(top,text='恢复高保真默认',command=self.reset_defaults).pack(side='right')
+        ttk.Button(top,text='恢复推荐默认',command=self.reset_defaults).pack(side='right')
+        modes=ttk.Frame(settings,style='Card.TFrame')
+        modes.pack(fill='x',pady=(0,6))
+        self.adaptive_mode=ttk.Radiobutton(modes,text='自适应高质量照片（默认）',variable=self.options['photo_reencode'],value=True,command=self._compression_mode_changed)
+        self.adaptive_mode.pack(side='left',padx=(0,22))
+        self.strict_mode=ttk.Radiobutton(modes,text='严格无损（不重编码照片）',variable=self.options['photo_reencode'],value=False,command=self._compression_mode_changed)
+        self.strict_mode.pack(side='left')
         tabs=ttk.Notebook(settings)
         tabs.pack(fill='x')
         lossless=ttk.Frame(tabs,style='Card.TFrame',padding=(8,9))
         quality=ttk.Frame(tabs,style='Card.TFrame',padding=(8,9))
         tabs.add(lossless,text='矢量与无损压缩')
-        tabs.add(quality,text='可选照片压缩')
+        tabs.add(quality,text='照片质量')
         for col,(key,label) in enumerate((('compact_vectors','合并简单矢量对象'),('deduplicate','去除重复资源'),('lossless_polish','深度无损优化'))):
             ttk.Checkbutton(lossless,text=label,variable=self.options[key]).grid(row=0,column=col,sticky='w',padx=(0,20))
         ttk.Label(lossless,text='无损压缩级别',style='Card.TLabel').grid(row=1,column=0,sticky='w',pady=6)
         ttk.Spinbox(lossless,from_=1,to=9,width=6,textvariable=self.options['compression_level']).grid(row=1,column=1,sticky='w')
         ttk.Label(lossless,text='9 为最高压缩；不改变照片质量',style='Muted.TLabel').grid(row=1,column=2,sticky='w')
-        ttk.Checkbutton(lossless,text='逐页画面校验',variable=self.options['verify_visual']).grid(row=2,column=0,sticky='w')
+        self.verify_check=ttk.Checkbutton(lossless,text='逐页画面校验',variable=self.options['verify_visual'])
+        self.verify_check.grid(row=2,column=0,sticky='w')
         ttk.Combobox(lossless,textvariable=self.options['verify_width'],values=(2000,4000,6000,8000,10000,12000),state='readonly',width=7).grid(row=2,column=1,sticky='w')
         ttk.Label(lossless,text='像素长边 · 8000 为默认精细校验',style='Muted.TLabel').grid(row=2,column=2,sticky='w')
-        ttk.Checkbutton(quality,text='启用高质量 JPEG 重编码（有损，默认关闭）',variable=self.options['photo_reencode'],command=self._quality_note).grid(row=0,column=0,columnspan=3,sticky='w')
+        ttk.Label(quality,text='自适应模式为高质量有损压缩；需要零像素变化时选择“严格无损”。',style='Muted.TLabel').grid(row=0,column=0,columnspan=3,sticky='w')
         ttk.Label(quality,text='JPEG 起始质量',style='Card.TLabel').grid(row=1,column=0,sticky='w',pady=8)
-        ttk.Spinbox(quality,from_=90,to=100,width=7,textvariable=self.options['jpeg_quality']).grid(row=1,column=1,sticky='w',padx=12)
+        self.jpeg_quality_box=ttk.Spinbox(quality,from_=90,to=100,width=7,textvariable=self.options['jpeg_quality'])
+        self.jpeg_quality_box.grid(row=1,column=1,sticky='w',padx=12)
         ttk.Label(quality,text='96 推荐 · 细节不达标时自动提高质量 · 不降分辨率',style='Muted.TLabel').grid(row=1,column=2,sticky='w')
         ttk.Label(quality,text='逐图与局部细节校验；现有 JPEG、透明图与识别出的线稿跳过，编码保持 4:4:4。',style='Muted.TLabel').grid(row=2,column=0,columnspan=3,sticky='w')
         ttk.Label(settings,textvariable=self.verify_note,style='Muted.TLabel').pack(anchor='w',pady=(7,0))
@@ -203,6 +211,8 @@ class App(tk.Tk):
 
     def _settings(self):
         values={k:v.get() for k,v in self.options.items()}
+        if not values['photo_reencode']:
+            values['verify_visual']=True
         values['collision']={'自动编号，保留两份':'rename','跳过已存在文件':'skip','覆盖输出文件':'replace'}[self.collision_label.get()]
         settings=Settings(**values)
         settings.validate()
@@ -216,11 +226,26 @@ class App(tk.Tk):
         if self.busy:return
         for k,v in asdict(Settings()).items():self.options[k].set(v)
         self.collision_label.set('自动编号，保留两份')
+        self._compression_mode_changed()
+        self.status.set('已恢复自适应高质量默认配置，JPEG 起始质量为 96。')
+
+    def _compression_mode_changed(self):
+        if not self.options['photo_reencode'].get():
+            self.options['verify_visual'].set(True)
         self._quality_note()
-        self.status.set('已恢复高保真默认配置。')
+        # Remember an explicit choice even if no compression job is started.
+        if not self.busy:
+            try:self._save_settings(self._settings())
+            except (OSError,ValueError,tk.TclError):pass
 
     def _quality_note(self):
-        self.verify_note.set('高质量照片模式：逐图自适应质量；矢量优化仍须通过零差异校验。' if self.options['photo_reencode'].get() else '默认保真模式：照片原样保留，矢量继续可缩放。')
+        adaptive=self.options['photo_reencode'].get()
+        if not adaptive:self.options['verify_visual'].set(True)
+        self.adaptive_mode.configure(state='disabled' if self.busy else 'normal')
+        self.strict_mode.configure(state='disabled' if self.busy else 'normal')
+        self.jpeg_quality_box.configure(state='normal' if adaptive and not self.busy else 'disabled')
+        self.verify_check.configure(state='normal' if adaptive and not self.busy else 'disabled')
+        self.verify_note.set('自适应高质量：逐图提高必要的编码质量；照片有损，矢量优化须通过零差异校验。' if adaptive else '严格无损：不重编码照片，逐页画面须通过零差异校验。')
 
     def _refresh_mode(self):
         custom=self.output_mode.get()=='custom'
@@ -277,7 +302,7 @@ class App(tk.Tk):
             if self.output_mode.get()=='custom' and not output:
                 raise ValueError('请先选择自定义输出目录。')
             for path in self.files.values():
-                folder=Path(output).expanduser().resolve() if output else Path(path).parent/'压缩结果'
+                folder=Path(output).expanduser().resolve() if output else Path(path).parent/DEFAULT_OUTPUT_FOLDER
                 if (folder/(Path(path).stem+settings.suffix+Path(path).suffix)).resolve()==Path(path):
                     raise ValueError('输出路径与原文件相同。请选择其他目录或设置后缀。')
             if settings.collision=='replace' and not messagebox.askyesno('覆盖输出文件','将覆盖输出目录中已有的同名文件。是否继续？'):
@@ -378,7 +403,7 @@ class App(tk.Tk):
         result=self.results.get(selected[0],{}) if selected else {}
         if result.get('output'):folder=Path(result['output']).parent
         elif self.output_mode.get()=='custom' and self.output_dir.get().strip():folder=Path(self.output_dir.get())
-        elif self.files:folder=Path(next(iter(self.files.values()))).parent/'压缩结果'
+        elif self.files:folder=Path(next(iter(self.files.values()))).parent/DEFAULT_OUTPUT_FOLDER
         else:return
         if folder.exists():os.startfile(str(folder))
         else:self.status.set('输出目录将在开始压缩时创建。')

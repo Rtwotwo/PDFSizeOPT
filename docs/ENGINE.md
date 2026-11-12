@@ -2,7 +2,7 @@
 
 The core implementation is **[`src/pdfsizeopt_app/engine.py`](../src/pdfsizeopt_app/engine.py)**. The GUI submits jobs through [`worker.py`](../src/pdfsizeopt_app/worker.py); each job calls `compress_pdf()`.
 
-## Default call flow
+## Lossless stage
 
 ```mermaid
 flowchart TD
@@ -20,21 +20,21 @@ flowchart TD
     J -->|No| K[Save unchanged original copy]
 ```
 
-This diagram describes the default profile. Lossy photo encoding is a separate option and is disabled by default. When enabled, it runs **after** a strictly validated lossless result has been selected. The photo output replaces that result only when it is smaller and passes the additional quality checks.
+This diagram describes the lossless stage used by both modes. The default adaptive mode then performs high-quality photo encoding, starting at quality 96, **after** a strictly validated lossless result has been selected. The photo output replaces that result only when it is smaller and passes the additional quality checks. Select strict lossless mode in the GUI, or use `Settings(photo_reencode=False)`, to stop after the lossless stage.
 
 ## Function map
 
 | Function | Source | Responsibility |
 |---|---|---|
-| `Settings` | [engine.py](../src/pdfsizeopt_app/engine.py#L46) | Defaults, compression controls, verification scales, and output policy |
-| `compact_vectors()` | [engine.py](../src/pdfsizeopt_app/engine.py#L126) | Select suitable leaf forms, remap graphics-state names, preserve matrices and bounding-box clips, and Deflate the expanded stream |
-| `photo_reencode()` | [engine.py](../src/pdfsizeopt_app/engine.py#L213) | Adaptive JPEG conversion of eligible raw photo-like images, without resizing |
-| `rewrite()` | [engine.py](../src/pdfsizeopt_app/engine.py#L259) | Clone the catalog and pages and use pypdf's object deduplication |
-| `polish()` | [engine.py](../src/pdfsizeopt_app/engine.py#L275) | Invoke the separately installed upstream optimizer |
-| `structure_info()` | [engine.py](../src/pdfsizeopt_app/engine.py#L301) | Capture page geometry, annotation counts, and selected catalog features |
-| `render_verify()` | [engine.py](../src/pdfsizeopt_app/engine.py#L317) | Compare PDFium-rendered pixels at two scales |
-| `output_path()` | [engine.py](../src/pdfsizeopt_app/engine.py#L363) | Preserve names, handle collisions, and reject source/output identity |
-| `compress_pdf()` | [engine.py](../src/pdfsizeopt_app/engine.py#L381) | Orchestrate candidates, fallback, source checks, reports, and atomic output |
+| `Settings` | [engine.py](../src/pdfsizeopt_app/engine.py#L48) | Defaults, compression controls, verification scales, and output policy |
+| `compact_vectors()` | [engine.py](../src/pdfsizeopt_app/engine.py#L128) | Select suitable leaf forms, remap graphics-state names, preserve matrices and bounding-box clips, and Deflate the expanded stream |
+| `photo_reencode()` | [engine.py](../src/pdfsizeopt_app/engine.py#L215) | Adaptive JPEG conversion of eligible raw photo-like images, without resizing |
+| `rewrite()` | [engine.py](../src/pdfsizeopt_app/engine.py#L261) | Clone the catalog and pages and use pypdf's object deduplication |
+| `polish()` | [engine.py](../src/pdfsizeopt_app/engine.py#L277) | Invoke the separately installed upstream optimizer |
+| `structure_info()` | [engine.py](../src/pdfsizeopt_app/engine.py#L303) | Capture page geometry, annotation counts, and selected catalog features |
+| `render_verify()` | [engine.py](../src/pdfsizeopt_app/engine.py#L319) | Compare PDFium-rendered pixels at two scales |
+| `output_path()` | [engine.py](../src/pdfsizeopt_app/engine.py#L365) | Preserve names, handle collisions, and reject source/output identity |
+| `compress_pdf()` | [engine.py](../src/pdfsizeopt_app/engine.py#L383) | Orchestrate candidates, fallback, source checks, reports, and atomic output |
 
 ### Vector compaction
 
@@ -44,7 +44,7 @@ This can remove substantial PDF-object overhead in vector-heavy exports while re
 
 ### Adaptive photo encoding
 
-[`quality.py`](../src/pdfsizeopt_app/quality.py) compares JPEG-decoded pixels against each original image at native resolution. It raises the requested starting quality until the whole-image and local-tile limits pass, or retains the original image. See the exact thresholds in the [README](../README.md#optional-photo-compression). The checked JPEG bytes are installed directly into the PDF image stream, retaining its dimensions and interpolation settings.
+[`quality.py`](../src/pdfsizeopt_app/quality.py) compares JPEG-decoded pixels against each original image at native resolution. It raises the requested starting quality until the whole-image and local-tile limits pass, or retains the original image. See the exact thresholds in the [README](../README.md#compression-modes). The checked JPEG bytes are installed directly into the PDF image stream, retaining its dimensions and interpolation settings.
 
 The image eligibility rules are conservative heuristics, not a universal photograph classifier. Existing JPEG/JPX images and transparency masks are never sent through this lossy stage. Flat-background graphics are excluded. A lock-protected, temporarily enlarged Pillow buffer handles high-entropy optimized 4:4:4 JPEGs without leaking encoder settings between calls.
 
