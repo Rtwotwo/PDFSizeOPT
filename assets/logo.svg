@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="230" viewBox="0 0 720 230" role="img" aria-labelledby="title desc">
+  <title id="title">PDFSizeOPT</title>
+  <desc id="desc">A blue document mark with inward arrows, beside the PDFSizeOPT wordmark. Smaller PDFs. Detail intact.</desc>
+  <defs>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#2878f0"/>
+      <stop offset="1" stop-color="#164ebf"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="718" height="228" rx="28" fill="#ffffff" stroke="#e8eef6" stroke-width="2"/>
+  <g transform="translate(32 35)">
+    <rect width="160" height="160" rx="36" fill="url(#blue)"/>
+    <path d="M43 25H91L119 53V135H43Z" fill="#ffffff"/>
+    <path d="M91 25V53H119Z" fill="#c5dcff"/>
+    <path d="M57 67H104M57 80H95" stroke="#b2c9e8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M62 96L73 108L62 120M99 96L88 108L99 120" fill="none" stroke="#1762db" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="226" y="112" fill="#172a43" font-family="Segoe UI,Arial,Helvetica,sans-serif" font-size="68" font-weight="700" letter-spacing="-2">PDFSize<tspan fill="#1762db">OPT</tspan></text>
+  <text x="230" y="155" fill="#61748d" font-family="Segoe UI,Arial,Helvetica,sans-serif" font-size="23" letter-spacing=".2">Smaller PDFs. Detail intact.</text>
+</svg>

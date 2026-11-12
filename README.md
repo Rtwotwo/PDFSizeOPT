@@ -1,6 +1,23 @@
-# PDFSizeOPT
+<p align="center">
+  <img src="assets/logo.svg" width="680" alt="PDFSizeOPT — Smaller PDFs. Detail intact.">
+</p>
 
-**A local Windows desktop app for high-fidelity PDF compression.**
+<p align="center"><strong>A local Windows desktop app for high-fidelity PDF compression.</strong></p>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-16a34a" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%20x64-1762db" alt="Platform: Windows x64">
+  <img src="https://img.shields.io/badge/Python-3.12%20%7C%203.13-3776ab" alt="Python 3.12 or 3.13">
+</p>
+
+<p align="center">
+  <a href="#installation">Install</a> ·
+  <a href="src/pdfsizeopt_app/engine.py">Core source</a> ·
+  <a href="docs/ENGINE.md">Engine guide</a> ·
+  <a href="#usage">Usage</a> ·
+  <a href="#license">License</a> ·
+  <a href="#acknowledgments">Acknowledgments</a>
+</p>
 
 PDFSizeOPT reduces PDF size by simplifying eligible vector structures, deduplicating resources, and applying lossless object optimization. The default profile preserves image resolution, keeps vector content scalable, and checks the rendered result before saving the output.
 
@@ -17,6 +34,20 @@ Processing runs entirely on your computer. There are no accounts, uploads, cloud
 - **Batch processing:** add multiple PDFs or a folder, monitor each result, and cancel a running batch.
 - **Flexible output:** custom destination, unchanged filenames by default, optional suffixes, and configurable collision handling.
 - **Local reports:** sizes, settings, hashes, timing, and quality checks are recorded in `logs/`.
+
+## Core compression engine
+
+**Start with [`src/pdfsizeopt_app/engine.py`](src/pdfsizeopt_app/engine.py).** This is the executable compression and verification pipeline, not just the desktop interface.
+
+| Implementation | What it does |
+|---|---|
+| [`compact_vectors()`](src/pdfsizeopt_app/engine.py#L125) | Inline eligible simple vector forms, preserve transforms and clipping, and compress rewritten streams |
+| [`rewrite()`](src/pdfsizeopt_app/engine.py#L246) | Clone the document and deduplicate PDF objects using pypdf |
+| [`polish()`](src/pdfsizeopt_app/engine.py#L262) | Invoke the optional upstream `pts/pdfsizeopt` optimizer |
+| [`render_verify()`](src/pdfsizeopt_app/engine.py#L299) | Compare original and candidate pages using PDFium |
+| [`compress_pdf()`](src/pdfsizeopt_app/engine.py#L363) | Select a validated result, handle fallback, and save it atomically |
+
+The built-in vector transformations, verification, and output management are implemented in this repository. Deep optimization is delegated to the original [pts/pdfsizeopt](https://github.com/pts/pdfsizeopt) project, whose source remains upstream. See the [engine walkthrough](docs/ENGINE.md) for the full call flow, a Python example, and links to both implementations.
 
 ## Measured example
 
@@ -92,7 +123,13 @@ Optionally, create a shortcut from PowerShell if local script policy permits it:
 .\create_shortcut.ps1
 ```
 
-This creates `PdfSizeOPT.lnk` inside the project folder. `start.cmd` works without a shortcut. If you already have a prepared local package containing `runtime/` and `bin/`, the launcher uses that runtime first and no additional installation is needed.
+This creates `PdfSizeOPT.lnk` inside the project folder. To also place a shortcut on your Windows desktop:
+
+```powershell
+.\create_shortcut.ps1 -Desktop
+```
+
+Shortcuts point to this project folder, so keep it in place or recreate them after moving it. `start.cmd` works without a shortcut. If you already have a prepared local package containing `runtime/` and `bin/`, the launcher uses that runtime first and no additional installation is needed.
 
 ## Usage
 
@@ -200,14 +237,34 @@ create_shortcut.ps1           Shortcut creation
 launcher.cs                  Optional C# launcher source
 build_launcher.ps1           Optional launcher build script
 build_icon.py / assets/       Reproducible application icon
+docs/ENGINE.md               Core functions, call flow, and upstream source map
+LICENSE                      MIT license for this project's original work
 tests/                       Automated tests
 licenses/                    Third-party notices
 ```
 
 Regenerate the icon with `python build_icon.py`. Build the optional launcher with `build_launcher.ps1`. `.venv/`, `runtime/`, `bin/`, `.downloads/`, `logs/`, `settings.json`, and generated shortcuts are local artifacts ignored by Git.
 
-## Dependencies and notices
+## Contributing
 
-Built with [pypdf](https://github.com/py-pdf/pypdf), [NumPy](https://numpy.org/), [Pillow](https://python-pillow.github.io/), [pypdfium2/PDFium](https://github.com/pypdfium2-team/pypdfium2), Python/Tk, and the optional [pts/pdfsizeopt](https://github.com/pts/pdfsizeopt) command-line tool. PDFSizeOPT is an independent desktop application, not the upstream `pts/pdfsizeopt` project.
+Issues and focused pull requests are welcome. See the [contributing guide](CONTRIBUTING.md) for reproduction details, tests, and source-code orientation.
 
-Dependencies retain their respective licenses. See [third-party notices](licenses/THIRD_PARTY.md). This repository does not yet declare a separate license for the application source.
+## License
+
+This project's original application code, documentation, and logo are released under the **[MIT License](LICENSE)**, copyright 2026 Rtwotwo.
+
+Third-party components keep their own licenses. In particular, the optional upstream `pts/pdfsizeopt` program remains under its [GPL-2.0 license](https://github.com/pts/pdfsizeopt/blob/master/LICENSE); the MIT license here does not relicense that program or its tool bundle. See [third-party notices](licenses/THIRD_PARTY.md) for the component list and upstream sources.
+
+## Acknowledgments
+
+Special thanks to **Peter Szabo and the contributors to the original [pts/pdfsizeopt](https://github.com/pts/pdfsizeopt)**. Its PDF optimization program and Windows tool bundle power this application's optional deep-optimization stage. PDFSizeOPT is an independent desktop application and is not an official release of that upstream project.
+
+We also thank the maintainers and contributors of:
+
+- [py-pdf/pypdf](https://github.com/py-pdf/pypdf) for PDF parsing, rewriting, and object deduplication.
+- [pypdfium2-team/pypdfium2](https://github.com/pypdfium2-team/pypdfium2) and [chromium/pdfium](https://github.com/chromium/pdfium) for PDF rendering used in verification.
+- [python-pillow/Pillow](https://github.com/python-pillow/Pillow) for image handling and optional JPEG encoding.
+- [numpy/numpy](https://github.com/numpy/numpy) for pixel comparisons.
+- [python/cpython](https://github.com/python/cpython) and [tcltk/tk](https://github.com/tcltk/tk) for the local runtime and desktop interface.
+
+The README's presentation takes inspiration from [Stirling-PDF](https://github.com/Stirling-Tools/Stirling-PDF) and [shadcn/ui](https://github.com/shadcn-ui/ui). The PDFSizeOPT logo follows this project's existing document-and-inward-arrows icon and is provided as an editable [SVG](assets/logo.svg).
