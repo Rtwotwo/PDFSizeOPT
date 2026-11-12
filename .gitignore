@@ -1,0 +1,28 @@
+# Local runtimes and downloaded third-party tools
+/runtime/
+/.venv/
+/bin/
+/.downloads/
+
+# Private settings, paths, reports and generated files
+/logs/
+/settings.json
+*.lnk
+*.pdf
+*.zip
+*.exe
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+Thumbs.db
+/dist/
+/build/
+/test_results.txt
+
+# Editor state and credentials
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example

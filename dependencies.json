@@ -1,0 +1,12 @@
+{
+  "pdfsizeopt_windows": {
+    "url": "https://github.com/pts/pdfsizeopt/releases/download/2023-04-18/pdfsizeopt_win32exec-v9.zip",
+    "sha256": "ffb651251f4b7ffde161e131235366f8acb239b111b6fc7f84670fbf90bbe91e",
+    "filename": "pdfsizeopt_win32exec-v9.zip"
+  },
+  "pdfsizeopt_program": {
+    "url": "https://raw.githubusercontent.com/pts/pdfsizeopt/bc6c3ec21eb73888797f6411c6c96dadfeb56f76/pdfsizeopt.single",
+    "sha256": "3007ca4d4a82d10ce0445f7e52763d28cb9f060acc9a6c5a7a67c50dcb00d87f",
+    "filename": "pdfsizeopt.single"
+  }
+}
