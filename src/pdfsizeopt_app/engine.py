@@ -29,6 +29,7 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import DictionaryObject, IndirectObject, NameObject
 import pypdf.generic._base as pdf_base
 import pypdfium2 as pdfium
+from .quality import choose_photo_encoding
 
 pdf_base.FLOAT_WRITE_PRECISION = 15
 logging.getLogger("pypdf").setLevel(logging.ERROR)
@@ -210,7 +211,7 @@ def compact_vectors(reader, level=9, cancel=None):
 
 
 def photo_reencode(writer, quality, cancel=None):
-    """Optional high-quality JPEG, never downsampling or reencoding old JPEGs."""
+    """Adaptive high-quality JPEG, never downsampling or reencoding old JPEGs."""
     records, visited = [], set()
     for page in writer.pages:
         check_cancel(cancel)
@@ -229,17 +230,29 @@ def photo_reencode(writer, quality, cancel=None):
             im = im_file.image
             thumb = im.copy()
             thumb.thumbnail((192, 192))
-            if thumb.getcolors(1024) is not None or thumb.convert('L').entropy() < 5.0:
+            if ((str(obj.get('/ColorSpace')) != '/DeviceGray' and thumb.getcolors(1024) is not None)
+                    or thumb.convert('L').entropy() < 5.0):
                 continue
-            encoded = io.BytesIO()
-            im.save(encoded, format='JPEG', quality=quality, subsampling=0, optimize=True)
-            if len(encoded.getvalue()) >= len(obj._data):
+            # Exclude flat-background diagrams even when antialiasing introduces
+            # many colors. This remains a conservative heuristic, not a classifier.
+            quantized = np.asarray(thumb.convert('RGB'), dtype=np.uint8) // 16
+            color_codes = (quantized[:,:,0].astype(np.int32)*256
+                           + quantized[:,:,1].astype(np.int32)*16 + quantized[:,:,2])
+            if np.bincount(color_codes.ravel(), minlength=4096).max()/color_codes.size > .4:
                 continue
-            extras = {k: v for k, v in obj.items() if k not in (
-                '/Type','/Subtype','/Width','/Height','/ColorSpace','/BitsPerComponent','/Filter','/DecodeParms','/Length')}
-            im_file.replace(im, quality=quality, subsampling=0, optimize=True)
-            ref.get_object().update(extras)
-            records.append({'width': im.width, 'height': im.height, 'quality': quality})
+            selected = choose_photo_encoding(im, quality, len(obj._data), cancel)
+            check_cancel(cancel)
+            if selected is None:
+                continue
+            data, metrics = selected
+            # Install exactly the bytes checked above, preserving the image's
+            # dictionary (including interpolation), dimensions, and color space.
+            obj[NameObject('/Filter')] = NameObject('/DCTDecode')
+            obj.pop('/DecodeParms', None)
+            obj._data = data
+            obj.decoded_self = None
+            records.append({'width': im.width, 'height': im.height,
+                'requested_quality': quality, 'object': ref.idnum, **metrics})
     return records
 
 
@@ -289,7 +302,12 @@ def structure_info(path):
     reader = pdf_reader(path)
     boxes = [(list(p.mediabox), list(p.cropbox), p.rotation) for p in reader.pages]
     # Preserve navigation, form fields, embedded files and page annotations.
-    annotations = [len(p.get('/Annots', [])) for p in reader.pages]
+    annotations = []
+    for page in reader.pages:
+        annots = page.get('/Annots', [])
+        if isinstance(annots, IndirectObject):
+            annots = annots.get_object()
+        annotations.append(len(annots) if isinstance(annots, (list, tuple)) else 0)
     catalog = reader.trailer['/Root']
     features = {k: k in catalog for k in ('/Outlines','/AcroForm','/Names','/StructTreeRoot','/OCProperties')}
     reader.close()
@@ -389,7 +407,10 @@ def compress_pdf(source, directory=None, settings=None, cancel=None, emit=None):
         if sha256(original)!=input_hash:
             raise ValueError('读取过程中原文件发生变化，请重试。')
         base=work/'compact.pdf'
-        details=rewrite(original,base,settings,settings.compact_vectors,cancel)
+        # Validate all vector/object transformations without a lossy tolerance.
+        # Photo error must never hide a changed label, line, or clipping edge.
+        lossless_settings=Settings(**{**asdict(settings),'photo_reencode':False})
+        details=rewrite(original,base,lossless_settings,settings.compact_vectors,cancel)
         candidates=[base]
         if settings.lossless_polish:
             emit('progress',message='压缩重复资源及 PDF 对象结构…')
@@ -412,7 +433,7 @@ def compress_pdf(source, directory=None, settings=None, cancel=None, emit=None):
                 continue
             if settings.verify_visual:
                 passed,checks=render_verify(original,candidate,settings.verify_width,
-                    bool(details['reencoded_photos']),cancel,emit)
+                    False,cancel,emit)
                 if not passed:
                     fallback=True
                     emit('progress',message='检测到画面差异，尝试更保守的结果…')
@@ -428,6 +449,39 @@ def compress_pdf(source, directory=None, settings=None, cancel=None, emit=None):
                 if passed:
                     chosen=conservative
                     accepted_details=conservative_details
+        if chosen==original:
+            accepted_details={'inlined_forms':0,'reencoded_photos':[]}
+            checks=[]
+        if settings.photo_reencode:
+            emit('progress',message='逐张检查照片细节，自动提高必要的 JPEG 质量…')
+            photo_base=work/'photos.pdf'
+            photo_details=rewrite(chosen,photo_base,settings,False,cancel)
+            if photo_details['reencoded_photos']:
+                photo_candidate=photo_base
+                if settings.lossless_polish:
+                    photo_polished=work/'photos-polished.pdf'
+                    if polish(photo_base,photo_polished,work/'photo-engine.log',cancel,emit):
+                        if (photo_polished.stat().st_size<photo_base.stat().st_size
+                                and structure_info(photo_polished)==original_structure):
+                            exact,_=render_verify(photo_base,photo_polished,settings.verify_width,
+                                False,cancel,emit) if settings.verify_visual else (True,[])
+                            if exact:
+                                photo_candidate=photo_polished
+                            else:
+                                fallback=True
+                    if (work/'photo-engine.log').exists():
+                        shutil.copyfile(work/'photo-engine.log',logs/(stamp+'_photo_engine.log'))
+                if (photo_candidate.stat().st_size<chosen.stat().st_size
+                        and structure_info(photo_candidate)==original_structure):
+                    passed,photo_checks=render_verify(original,photo_candidate,settings.verify_width,
+                        True,cancel,emit) if settings.verify_visual else (True,[])
+                    if passed:
+                        chosen=photo_candidate
+                        accepted_details={**accepted_details,'reencoded_photos':photo_details['reencoded_photos']}
+                        checks=photo_checks
+                    else:
+                        fallback=True
+                        emit('progress',message='照片候选未通过画面检查，保留已验证的无损结果。')
         check_cancel(cancel)
         if sha256(source)!=input_hash:
             raise ValueError('处理过程中原文件发生变化，已停止输出。')

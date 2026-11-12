@@ -2,6 +2,12 @@
 
 Recorded on Windows x64 with Python 3.12 and the pinned application dependencies.
 
+## Adaptive-photo regression tests
+
+The adaptive-photo update passed **21 automated tests**. New synthetic fixtures cover native-resolution and local-tile quality gates, grayscale photos, alpha masks, existing JPEG preservation, high-entropy JPEG buffer sizing, indirect annotation arrays, and rejection of a small vector defect while photo encoding is enabled. See [the local corpus runner](benchmarks/run_corpus.py) to measure your own documents.
+
+The update retains the default lossless behavior. The sections below record the earlier installation and single-figure validation.
+
 ## Default-profile regression
 
 A single-page, vector-heavy reference figure was processed through the batch worker.

@@ -29,6 +29,7 @@ Processing runs entirely on your computer. There are no accounts, uploads, cloud
 
 - **Quality-first defaults:** no downsampling or lossy photo re-encoding unless explicitly enabled.
 - **Vector-aware optimization:** inline eligible simple Form XObjects, retain transformations and clipping, and deduplicate resources.
+- **Adaptive photo quality:** optional native-resolution JPEG encoding raises quality when fine detail misses the error limits, and keeps the original image if no smaller result passes.
 - **Per-page verification:** compare original and output at 2,000 and 8,000 pixels along the longer edge by default.
 - **Automatic fallback:** reject candidates with pixel differences, try a conservative rewrite, or save an unchanged copy.
 - **Batch processing:** add multiple PDFs or a folder, monitor each result, and cancel a running batch.
@@ -41,11 +42,11 @@ Processing runs entirely on your computer. There are no accounts, uploads, cloud
 
 | Implementation | What it does |
 |---|---|
-| [`compact_vectors()`](src/pdfsizeopt_app/engine.py#L125) | Inline eligible simple vector forms, preserve transforms and clipping, and compress rewritten streams |
-| [`rewrite()`](src/pdfsizeopt_app/engine.py#L246) | Clone the document and deduplicate PDF objects using pypdf |
-| [`polish()`](src/pdfsizeopt_app/engine.py#L262) | Invoke the optional upstream `pts/pdfsizeopt` optimizer |
-| [`render_verify()`](src/pdfsizeopt_app/engine.py#L299) | Compare original and candidate pages using PDFium |
-| [`compress_pdf()`](src/pdfsizeopt_app/engine.py#L363) | Select a validated result, handle fallback, and save it atomically |
+| [`compact_vectors()`](src/pdfsizeopt_app/engine.py#L126) | Inline eligible simple vector forms, preserve transforms and clipping, and compress rewritten streams |
+| [`rewrite()`](src/pdfsizeopt_app/engine.py#L259) | Clone the document and deduplicate PDF objects using pypdf |
+| [`polish()`](src/pdfsizeopt_app/engine.py#L275) | Invoke the optional upstream `pts/pdfsizeopt` optimizer |
+| [`render_verify()`](src/pdfsizeopt_app/engine.py#L317) | Compare original and candidate pages using PDFium |
+| [`compress_pdf()`](src/pdfsizeopt_app/engine.py#L381) | Select a validated result, handle fallback, and save it atomically |
 
 The built-in vector transformations, verification, and output management are implemented in this repository. Deep optimization is delegated to the original [pts/pdfsizeopt](https://github.com/pts/pdfsizeopt) project, whose source remains upstream. See the [engine walkthrough](docs/ENGINE.md) for the full call flow, a Python example, and links to both implementations.
 
@@ -63,6 +64,10 @@ A vector-heavy, single-page reference figure was processed with the default sett
 | Lossy photo re-encoding | Disabled |
 
 This is one measured result, not a guaranteed compression ratio. Already-optimized PDFs may shrink little or not at all. The reference PDF is not distributed here. See [validation notes](VALIDATION.md).
+
+### Test your own documents
+
+The [corpus test runner](benchmarks/run_corpus.py) runs strict-lossless and adaptive-photo profiles against your local PDFs and records sizes, timing, and quality checks. Inputs and measurements remain local. See the [benchmark protocol](docs/BENCHMARKS.md) for instructions and limitations.
 
 ## Requirements
 
@@ -181,7 +186,7 @@ An output path identical to its source is rejected. Choose another directory or 
 | Per-page visual verification | On | Compare the original and candidate renderings |
 | Verification long edge | 8,000 px | Also check at 2,000 px; higher values need more memory and time |
 | Lossy photo re-encoding | **Off** | Encode eligible raw photo-like images as high-quality JPEG |
-| JPEG quality | 96 | Used only for optional photo encoding, from 90 to 100 |
+| JPEG starting quality | 96 | Optional photo encoding starts here, then raises quality up to 100 if needed |
 | Filename suffix | Empty | Preserve the original name |
 | Existing output | Auto-number | Preserve both files |
 
@@ -189,9 +194,19 @@ The optional optimizer is invoked with PNGOUT, JBIG2, font optimization, font un
 
 ### Optional photo compression
 
-The **可选照片压缩** tab enables a separate **lossy** mode. It retains image dimensions and uses JPEG 4:4:4 chroma sampling. Existing JPEG/JPX images, masked images, and simple low-color graphics are skipped. This is a selective option, not a universal photograph detector.
+The **可选照片压缩** tab enables a separate **lossy** mode. It retains image dimensions and uses JPEG 4:4:4 chroma sampling. Existing JPEG/JPX images, masked images, low-color graphics, and detected flat-background diagrams are skipped. This is a selective option, not a universal photograph detector.
 
-When an image is re-encoded, verification requires a per-page PSNR of at least 40 dB at the chosen render scales. The interface reports **高质量有损**, not zero pixel differences. Keep this option off when exact rendered agreement is the priority. Turning off verification skips the rendered comparison entirely.
+The quality control is a **starting value**, never a target reached by lowering quality. For each eligible image, the encoder tries that value and then higher values up to 100. Each accepted JPEG must be smaller and meet all three native-resolution checks:
+
+- RGB PSNR of at least **48 dB** over the entire image.
+- At least **42 dB** at the 99th-percentile error level across 64 × 64 tiles.
+- At least **40 dB** for the worst tile, including partial edge tiles.
+
+If no smaller JPEG meets these limits, the original image is retained. These numerical gates limit error; they are not a guarantee of perceptual equivalence for every image. Even JPEG quality 100 is not necessarily lossless.
+
+Vector/object optimization is validated first with **zero pixel differences**, separately from photographic changes. Any post-photo object optimization must also match the photo candidate exactly. The final photo output additionally requires page PSNR of at least 40 dB at both render scales. This prevents the photo tolerance from masking changes introduced by vector compaction. The interface reports **高质量有损** when any photo is re-encoded.
+
+Keep photo encoding off when exact rendered agreement is the priority. Turning off visual verification skips rendered checks, but native-image quality checks remain active. The extra validation takes more time than a fixed JPEG quality setting.
 
 ## Quality checks and limitations
 

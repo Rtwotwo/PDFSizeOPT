@@ -171,10 +171,10 @@ class App(tk.Tk):
         ttk.Combobox(lossless,textvariable=self.options['verify_width'],values=(2000,4000,6000,8000,10000,12000),state='readonly',width=7).grid(row=2,column=1,sticky='w')
         ttk.Label(lossless,text='像素长边 · 8000 为默认精细校验',style='Muted.TLabel').grid(row=2,column=2,sticky='w')
         ttk.Checkbutton(quality,text='启用高质量 JPEG 重编码（有损，默认关闭）',variable=self.options['photo_reencode'],command=self._quality_note).grid(row=0,column=0,columnspan=3,sticky='w')
-        ttk.Label(quality,text='JPEG 质量',style='Card.TLabel').grid(row=1,column=0,sticky='w',pady=8)
+        ttk.Label(quality,text='JPEG 起始质量',style='Card.TLabel').grid(row=1,column=0,sticky='w',pady=8)
         ttk.Spinbox(quality,from_=90,to=100,width=7,textvariable=self.options['jpeg_quality']).grid(row=1,column=1,sticky='w',padx=12)
-        ttk.Label(quality,text='96 推荐 · 始终保留分辨率与 4:4:4 色度',style='Muted.TLabel').grid(row=1,column=2,sticky='w')
-        ttk.Label(quality,text='仅处理适合照片编码的原始位图；现有 JPEG、透明图片与线稿保持原样。',style='Muted.TLabel').grid(row=2,column=0,columnspan=3,sticky='w')
+        ttk.Label(quality,text='96 推荐 · 细节不达标时自动提高质量 · 不降分辨率',style='Muted.TLabel').grid(row=1,column=2,sticky='w')
+        ttk.Label(quality,text='逐图与局部细节校验；现有 JPEG、透明图与识别出的线稿跳过，编码保持 4:4:4。',style='Muted.TLabel').grid(row=2,column=0,columnspan=3,sticky='w')
         ttk.Label(settings,textvariable=self.verify_note,style='Muted.TLabel').pack(anchor='w',pady=(7,0))
 
         footer=ttk.Frame(body)
@@ -220,7 +220,7 @@ class App(tk.Tk):
         self.status.set('已恢复高保真默认配置。')
 
     def _quality_note(self):
-        self.verify_note.set('已启用有损照片压缩：保留分辨率，校验以高质量误差阈值判断。' if self.options['photo_reencode'].get() else '默认保真模式：照片原样保留，矢量继续可缩放。')
+        self.verify_note.set('高质量照片模式：逐图自适应质量；矢量优化仍须通过零差异校验。' if self.options['photo_reencode'].get() else '默认保真模式：照片原样保留，矢量继续可缩放。')
 
     def _refresh_mode(self):
         custom=self.output_mode.get()=='custom'
